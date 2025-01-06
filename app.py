@@ -1,6 +1,7 @@
 import streamlit as st
-from openpyxl import load_workbook, Workbook
+import pandas as pd
 import tempfile
+from openpyxl import Workbook
 
 # Streamlit UI
 def main():
@@ -11,38 +12,45 @@ def main():
 
     if uploaded_file:
         try:
-            # Load workbook
-            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            # Load workbook using pandas
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_file:
                 tmp_file.write(uploaded_file.read())
-                workbook = load_workbook(tmp_file.name)
+                tmp_file.seek(0)
+                excel_file = pd.ExcelFile(tmp_file.name)
+
+            # Debug: Display sheet names
+            st.write("Sayfa isimleri: ", excel_file.sheet_names)
 
             # Check required sheets
-            if not all(sheet in workbook.sheetnames for sheet in ["mağazalar", "ürünler", "Document"]):
-                st.error("Yüklenen dosyada 'mağazalar', 'ürünler' ve 'Document' sayfaları olmalıdır.")
+            required_sheets = ["mağazalar", "ürünler", "Document"]
+            missing_sheets = [sheet for sheet in required_sheets if sheet not in excel_file.sheet_names]
+
+            if missing_sheets:
+                st.error(f"Eksik sayfalar: {', '.join(missing_sheets)}. Lütfen doğru dosyayı yükleyin.")
                 return
 
-            stores_sheet = workbook["mağazalar"]
-            products_sheet = workbook["ürünler"]
-            document_sheet = workbook["Document"]
+            # Load sheets into DataFrames
+            stores_df = excel_file.parse("mağazalar")
+            products_df = excel_file.parse("ürünler")
 
-            # Clear existing data in 'Document'
-            for row in document_sheet.iter_rows(min_row=2):
-                for cell in row:
-                    cell.value = None
-
-            # Extract data
-            stores = [row[0] for row in stores_sheet.iter_rows(min_row=2, values_only=True)]
-            products = [(row[0], row[1]) for row in products_sheet.iter_rows(min_row=2, values_only=True)]
+            # Create a new workbook for output
+            workbook = Workbook()
+            document_sheet = workbook.active
+            document_sheet.title = "Document"
 
             # Populate Document sheet
             row_idx = 2
-            for store in stores:
-                for product in products:
+            for _, store_row in stores_df.iterrows():
+                store_code = store_row[0]  # Assuming StoreCode is in the first column
+                for _, product_row in products_df.iterrows():
+                    item_code = product_row[0]  # Assuming ItemCode is in the first column
+                    coefficient_value = product_row[1]  # Assuming CoefficientValue is in the second column
+
                     document_sheet.cell(row=row_idx, column=1, value=5)  # StoreTypeCode
-                    document_sheet.cell(row=row_idx, column=2, value=store)  # StoreCode
+                    document_sheet.cell(row=row_idx, column=2, value=store_code)  # StoreCode
                     document_sheet.cell(row=row_idx, column=3, value=1)  # ItemTypeCode
-                    document_sheet.cell(row=row_idx, column=4, value=product[0])  # ItemCode
-                    document_sheet.cell(row=row_idx, column=9, value=product[1])  # CoefficientValue
+                    document_sheet.cell(row=row_idx, column=4, value=item_code)  # ItemCode
+                    document_sheet.cell(row=row_idx, column=9, value=coefficient_value)  # CoefficientValue
                     row_idx += 1
 
             # Save updated workbook
@@ -59,7 +67,7 @@ def main():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
         except Exception as e:
-            st.error("Bir hata oluştu: " + str(e))
+            st.error(f"Bir hata oluştu: {str(e)}")
 
 if __name__ == "__main__":
     main()
