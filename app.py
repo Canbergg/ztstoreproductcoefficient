@@ -38,6 +38,14 @@ def main():
             document_sheet = workbook.active
             document_sheet.title = "Document"
 
+            # Add headers to the Document sheet
+            headers = [
+                "StoreTypeCode", "StoreCode", "ItemTypeCode", "ItemCode", 
+                "ColorCode", "ItemDim1Code", "ItemDim2Code", "ItemDim3Code", "CoefficientValue"
+            ]
+            for col_idx, header in enumerate(headers, start=1):
+                document_sheet.cell(row=1, column=col_idx, value=header)
+
             # Populate Document sheet
             row_idx = 2
             for _, store_row in stores_df.iterrows():
@@ -53,7 +61,10 @@ def main():
                     document_sheet.cell(row=row_idx, column=9, value=coefficient_value)  # CoefficientValue
                     row_idx += 1
 
-            # Save updated workbook
+            # Save updated workbook with modified name
+            original_filename = uploaded_file.name.rsplit(".", 1)[0]  # Extract the original filename without extension
+            updated_filename = f"{original_filename}_edited.xlsx"
+
             output = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
             workbook.save(output.name)
 
@@ -63,7 +74,7 @@ def main():
                 st.download_button(
                     label="Düzenlenmiş Excel Dosyasını İndir",
                     data=file,
-                    file_name="Updated_Document.xlsx",
+                    file_name=updated_filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
         except Exception as e:
